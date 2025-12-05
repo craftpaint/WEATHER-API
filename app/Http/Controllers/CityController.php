@@ -74,50 +74,56 @@ class CityController extends Controller
  *   4,60971 (coma como separador)
  *   etc.
  */
+
+
 private function parseCoordinate(string $input): ?float
 {
-    $original = $input;
-    $input = trim($input);
+    $original = trim($input);
 
-    // 1. Reemplaza coma por punto (formato europeo)
-    $input = str_replace(',', '.', $input);
-
-    // 2. Quita todos los caracteres que no sean números, puntos, guiones o espacios
-    $clean = preg_replace('/[^\d.\-\s]/', '', $input);
-
-    // 3. Si después de limpiar quedó un número válido → devolverlo
-    if (is_numeric($clean) && $clean >= -180 && $clean <= 180) {
-        return (float) $clean;
+    if (empty($original)) {
+        return null;
     }
 
-    // 4. Caso grados + minutos + segundos: 4°36'35" N
-    if (preg_match("/(\d+)°\s*(\d+)'\s*([\d.]+)\"?\s*([NSEW])/i", $original, $m)) {
-        $deg = $m[1];
-        $min = $m[2];
-        $sec = $m[3];
-        $dir = strtoupper($m[4]);
-        $decimal = $deg + $min/60 + $sec/3600;
-        return ($dir === 'S' || $dir === 'W') ? -$decimal : $decimal;
+    // 1. Normalizar: comas → puntos, quitar comillas dobles y simples, espacios extra
+    $clean = str_replace([',', '″', '"', "''", "”", "“"], '.', $original);
+    $clean = preg_replace('/\s+/', ' ', $clean); // múltiples espacios → uno solo
+    $clean = trim($clean);
+
+    // 2. Extraer dirección (N/S/E/W) si existe (puede estar al principio o al final)
+    $direction = null;
+    if (preg_match('/([NSWE])/i', $clean, $m)) {
+        $direction = strtoupper($m[1]);
+        $clean = preg_replace('/[NSWE]/i', '', $clean); // quitar la letra
+        $clean = trim($clean);
     }
 
-    // 5. Caso grados + minutos decimales: 4° 36.582' N
-    if (preg_match("/(\d+)°\s*([\d.]+)'\s*([NSEW])/i", $original, $m)) {
-        $deg = $m[1];
-        $min = $m[2];
-        $dir = strtoupper($m[3]);
-        $decimal = $deg + $min/60;
-        return ($dir === 'S' || $dir === 'W') ? -$decimal : $decimal;
+    // 3. Caso directo: número decimal puro (ej: 4.60971 o -74.08175)
+    if (is_numeric($clean)) {
+        $value = (float) $clean;
+    }
+    // 4. Grados + minutos + segundos → decimal (ej: 4°36'35" o 4° 36' 35.5")
+    elseif (preg_match('/(\d+)°\s*(\d+)[\'\′]\s*([\d.]+)[\″"″]?/', $clean, $m)) {
+        $value = $value = $m[1] + ($m[2] / 60) + ($m[3] / 3600);
+    }
+    // 5. Grados + minutos decimales → decimal (ej: 4° 36.582')
+    elseif (preg_match('/(\d+)°?\s*([\d.]+)[\'\′]/', $clean, $m)) {
+        $value = $m[1] + ($m[2] / 60);
+    }
+    // 6. Solo grados con símbolo ° (ej: 4.6097°)
+    elseif (preg_match('/([\d.]+)°/', $clean, $m)) {
+        $value = (float) $m[1];
+    }
+    // 7. Nada funcionó → inválido
+    else {
+        return null;
     }
 
-    // 6. Caso solo grados con dirección: 4.6097° N
-    if (preg_match("/([\d.]+)°\s*([NSEW])/i", $original, $m)) {
-        $decimal = (float)$m[1];
-        $dir = strtoupper($m[2]);
-        return ($dir === 'S' || $dir === 'W') ? -$decimal : $decimal;
+    // Aplicar signo según dirección
+    if ($direction && ($direction === 'S' || $direction === 'W')) {
+        $value = -$value;
     }
 
-    // 7. Si nada funcionó → inválido
-    return null;
+    return (float) $value;
 }
     public function show(City $city)
     {
