@@ -1,0 +1,7 @@
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+
+body {
+    @apply bg-gradient-to-br from-cyan-50 via-blue-50 to-indigo-100 min-h-screen antialiased;
+}
