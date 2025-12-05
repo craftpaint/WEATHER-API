@@ -6,6 +6,7 @@
     @forelse($cities as $city)
         <div class="col">
             <div class="card h-100 border-0 shadow-lg">
+                <!-- Imagen o placeholder -->
                 @if($city->image)
                     <img src="{{ asset('storage/'.$city->image) }}" class="card-img-top" style="height: 250px; object-fit: cover;">
                 @else
@@ -14,11 +15,16 @@
                     </div>
                 @endif
 
-                <div class="card-body text-center">
-                    <h3 class="card-title text-center mb-4">{{ $city->name }}</h3>
-                    <div class="text-center">
-                        <a href="{{ route('cities.show', $city) }}" class="btn btn-primary btn-lg w-100">
+                <!-- Cuerpo de la tarjeta -->
+                <div class="card-body text-center py-5">
+                    <h3 class="card-title fw-bold mb-4 fs-2">{{ $city->name }}</h3>
+                    
+                    <div class="d-grid gap-3">
+                        <a href="{{ route('cities.show', $city) }}" class="btn btn-primary btn-lg">
                             Ver Clima Actual
+                        </a>
+                        <a href="{{ route('cities.edit', $city) }}" class="btn btn-warning btn-lg text-white">
+                            Editar Ciudad
                         </a>
                     </div>
                 </div>

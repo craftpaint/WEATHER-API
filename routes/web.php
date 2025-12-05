@@ -7,3 +7,5 @@ Route::get('/', [CityController::class, 'index'])->name('cities.index');
 Route::get('/cities/create', [CityController::class, 'create'])->name('cities.create');
 Route::post('/cities', [CityController::class, 'store'])->name('cities.store');
 Route::get('/cities/{city}', [CityController::class, 'show'])->name('cities.show');
+Route::get('/cities/{city}/edit', [CityController::class, 'edit'])->name('cities.edit');
+Route::put('/cities/{city}', [CityController::class, 'update'])->name('cities.update');

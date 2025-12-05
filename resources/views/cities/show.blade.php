@@ -9,7 +9,7 @@
                 <h2 class="mb-0">Clima actual en {{ $city->name }}</h2>
             </div>
 
-            @if(isset($weather['weather']))
+            @if($weather)
                 <div class="card-body text-center py-5">
                     <img src="https://openweathermap.org/img/wn/{{ $weather['weather'][0]['icon'] }}@4x.png"
                          class="weather-icon" style="width: 200px;">
@@ -31,7 +31,7 @@
                         </div>
                         <div class="col">
                             <strong>Viento</strong><br>
-                            {{ $weather['wind']['speed'] }} m/s
+                            {{ $weather['wind']['speed'] ?? 0 }} m/s
                         </div>
                         <div class="col">
                             <strong>Presión</strong><br>
@@ -45,13 +45,13 @@
                     @endif
                 </div>
             @else
-                <div class="card-body text-center text-danger">
-                    <h3>No se pudo obtener el clima</h3>
-                    <p>Verifica tu API key o las coordenadas</p>
+                <div class="card-body text-center text-danger py-5">
+                    <h3>No se pudo cargar el clima</h3>
+                    <p class="mb-0">Verifica tu conexión o la API key</p>
                 </div>
             @endif
 
-            <div class="card-footer text-center">
+            <div class="card-footer text-center py-4">
                 <a href="{{ route('cities.index') }}" class="btn btn-secondary btn-lg">
                     ← Volver a la lista
                 </a>

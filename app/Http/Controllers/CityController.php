@@ -125,18 +125,62 @@ private function parseCoordinate(string $input): ?float
 
     return (float) $value;
 }
+
+public function edit(City $city)
+{
+    return view('cities.edit', compact('city'));
+}
+
+public function update(Request $request, City $city)
+{
+    $request->validate([
+        'name'      => 'required|max:100|unique:cities,name,' . $city->id,
+        'latitude'  => 'required',
+        'longitude' => 'required',
+        'image'     => 'nullable|image|max:2048'
+    ]);
+
+    $lat = $this->parseCoordinate($request->latitude);
+    $lon = $this->parseCoordinate($request->longitude);
+
+    if ($lat === null || $lon === null) {
+        return back()->withErrors([
+            'latitude'  => 'Formato de latitud no reconocido',
+            'longitude' => 'Formato de longitud no reconocido'
+        ])->withInput();
+    }
+
+    $data = [
+        'name'      => $request->name,
+        'latitude'  => $lat,
+        'longitude' => $lon,
+    ];
+
+    // Si sube nueva imagen, borrar la anterior y guardar la nueva
+    if ($request->hasFile('image')) {
+        if ($city->image) {
+            Storage::disk('public')->delete($city->image);
+        }
+        $data['image'] = $request->file('image')->store('cities', 'public');
+    }
+
+    $city->update($data);
+
+    return redirect()->route('cities.index')->with('success', 'Ciudad actualizada correctamente');
+}
     public function show(City $city)
-    {
-        $response = Http::get('https://api.openweathermap.org/data/2.5/weather', [
-            'lat'    => $city->latitude,
-            'lon'    => $city->longitude,
-            'appid' => env('OPENWEATHER_API_KEY'),
-            'units'  => 'metric',
-            'lang'   => 'es'
-        ]);
+{
+    $response = Http::get('https://api.openweathermap.org/data/2.5/weather', [
+        'lat'    => $city->latitude,
+        'lon'    => $city->longitude,
+        'appid'  => env('OPENWEATHER_API_KEY'),
+        'units'  => 'metric',
+        'lang'   => 'es'
+    ]);
 
-        $weather = $response->json();
+    // Si falla la API, al menos mostramos la ciudad sin clima
+    $weather = $response->successful() ? $response->json() : null;
 
-        return view('cities.show', compact('city', 'weather'));
+    return view('cities.show', compact('city', 'weather'));
     }
 }
