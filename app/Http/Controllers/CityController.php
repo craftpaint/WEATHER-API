@@ -24,24 +24,22 @@ class CityController extends Controller
 {
     $request->validate([
         'name'      => 'required|unique:cities|max:100',
-        'latitude'  => 'required',  // ya no validamos como numeric aquí
+        'latitude'  => 'required',
         'longitude' => 'required',
         'image'     => 'nullable|image|max:2048'
     ]);
 
-    // Función mágica que limpia cualquier formato de coordenada
-    $cleanLatitude  = $this->cleanCoordinate($request->latitude);
-    $cleanLongitude = $this->cleanCoordinate($request->longitude);
+    $lat = $this->parseCoordinate($request->latitude);
+    $lon = $this->parseCoordinate($request->longitude);
 
-    // Validación final: ahora sí deben ser números válidos
-    if (!is_numeric($cleanLatitude) || !is_numeric($cleanLongitude)) {
+    if ($lat === null || $lon === null) {
         return back()->withErrors([
-            'latitude'  => 'Latitud inválida',
-            'longitude' => 'Longitud inválida'
+            'latitude'  => 'Formato de latitud no reconocido',
+            'longitude' => 'Formato de longitud no reconocido'
         ])->withInput();
     }
 
-    if ($cleanLatitude < -90 || $cleanLatitude > 90 || $cleanLongitude < -180 || $cleanLongitude > 180) {
+    if ($lat < -90 || $lat > 90 || $lon < -180 || $lon > 180) {
         return back()->withErrors([
             'latitude'  => 'Latitud debe estar entre -90 y 90',
             'longitude' => 'Longitud debe estar entre -180 y 180'
@@ -50,8 +48,8 @@ class CityController extends Controller
 
     $data = [
         'name'      => $request->name,
-        'latitude'  => $cleanLatitude,
-        'longitude' => $cleanLongitude,
+        'latitude'  => $lat,
+        'longitude' => $lon,
     ];
 
     if ($request->hasFile('image')) {
@@ -64,39 +62,63 @@ class CityController extends Controller
 }
 
 /**
- * Limpia cualquier formato de coordenada y devuelve solo el número decimal
- * Ejemplos aceptados:
+ * Convierte CUALQUIER formato de coordenada a decimal
+ * Acepta:
  *   4.60971
  *   4.6097°
+ *   4.6097° N
+ *   4° 36.582' N
  *   4°36'35"N
- *   -74.0817
- *   74°04'54"W
+ *   -74.08175
+ *   74.08175°W
+ *   4,60971 (coma como separador)
+ *   etc.
  */
-private function cleanCoordinate($coord)
+private function parseCoordinate(string $input): ?float
 {
-    // Quita todo lo que no sea número, punto, coma, menos o espacio
-    $clean = preg_replace('/[^\d.,-]/', '', $coord);
-    // Cambia coma por punto (por si alguien usa formato europeo)
-    $clean = str_replace(',', '.', $clean);
-    // Quita espacios
-    $clean = trim($clean);
+    $original = $input;
+    $input = trim($input);
 
-    // Si tiene grados, minutos y segundos (ej: 4°36'35"), lo convierte a decimal
-    if (preg_match("/(\d+)°\s*(\d+)'\s*(\d+(\.\d+)?)\"/", $coord, $matches)) {
-        $degrees = $matches[1];
-        $minutes = $matches[2];
-        $seconds = $matches[3];
-        $decimal = $degrees + ($minutes / 60) + ($seconds / 3600);
-        // Aplica signo si viene con S o W
-        if (stripos($coord, 'S') !== false || stripos($coord, 'W') !== false) {
-            $decimal = -$decimal;
-        }
-        return $decimal;
+    // 1. Reemplaza coma por punto (formato europeo)
+    $input = str_replace(',', '.', $input);
+
+    // 2. Quita todos los caracteres que no sean números, puntos, guiones o espacios
+    $clean = preg_replace('/[^\d.\-\s]/', '', $input);
+
+    // 3. Si después de limpiar quedó un número válido → devolverlo
+    if (is_numeric($clean) && $clean >= -180 && $clean <= 180) {
+        return (float) $clean;
     }
 
-    return $clean;
-}
+    // 4. Caso grados + minutos + segundos: 4°36'35" N
+    if (preg_match("/(\d+)°\s*(\d+)'\s*([\d.]+)\"?\s*([NSEW])/i", $original, $m)) {
+        $deg = $m[1];
+        $min = $m[2];
+        $sec = $m[3];
+        $dir = strtoupper($m[4]);
+        $decimal = $deg + $min/60 + $sec/3600;
+        return ($dir === 'S' || $dir === 'W') ? -$decimal : $decimal;
+    }
 
+    // 5. Caso grados + minutos decimales: 4° 36.582' N
+    if (preg_match("/(\d+)°\s*([\d.]+)'\s*([NSEW])/i", $original, $m)) {
+        $deg = $m[1];
+        $min = $m[2];
+        $dir = strtoupper($m[3]);
+        $decimal = $deg + $min/60;
+        return ($dir === 'S' || $dir === 'W') ? -$decimal : $decimal;
+    }
+
+    // 6. Caso solo grados con dirección: 4.6097° N
+    if (preg_match("/([\d.]+)°\s*([NSEW])/i", $original, $m)) {
+        $decimal = (float)$m[1];
+        $dir = strtoupper($m[2]);
+        return ($dir === 'S' || $dir === 'W') ? -$decimal : $decimal;
+    }
+
+    // 7. Si nada funcionó → inválido
+    return null;
+}
     public function show(City $city)
     {
         $response = Http::get('https://api.openweathermap.org/data/2.5/weather', [
